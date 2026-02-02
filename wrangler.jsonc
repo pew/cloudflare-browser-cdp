@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "remote-browser-cdp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-02-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+  },
+  // Browser Rendering binding - requires Workers Paid plan
+  "browser": {
+    "binding": "BROWSER",
+  },
+  // Secrets to configure via `wrangler secret put`:
+  // - CDP_SECRET: Shared secret for endpoint authentication (required)
+}
