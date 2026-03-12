@@ -12,6 +12,7 @@
   // Browser Rendering binding - requires Workers Paid plan
   "browser": {
     "binding": "BROWSER",
+    "remote": true,
   },
   // Secrets to configure via `wrangler secret put`:
   // - CDP_SECRET: Shared secret for endpoint authentication (required)
