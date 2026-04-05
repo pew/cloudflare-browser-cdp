@@ -1,22 +1,25 @@
 # Cloudflare Browser CDP
 
-> A Cloudflare Worker that exposes headless Chrome via the Chrome DevTools Protocol (CDP) over WebSocket. Connect via WebSocket with a shared secret to control a remote browser for automation, scraping, screenshots, and testing.
+> A Cloudflare Worker that proxies Cloudflare Browser Rendering as a standard remote Chrome DevTools Protocol (CDP) endpoint over WebSocket. Connect with any CDP client using a shared secret to control a remote headless browser.
 
 Key facts:
 
+- Transparent CDP proxy — does not interpret or implement individual CDP methods
 - Requires Cloudflare Workers Paid plan ($5/month) for Browser Rendering
 - Authentication via `?secret=<CDP_SECRET>` query parameter on all endpoints
-- WebSocket connection at `wss://<worker-url>?secret=<CDP_SECRET>`
+- WebSocket connection at `wss://<worker-url>/?secret=<CDP_SECRET>`
+- All CDP methods supported by Cloudflare Browser Rendering are available
 - Send CDP commands as JSON: `{"id": 1, "method": "Domain.method", "params": {...}}`
 - Responses are JSON: `{"id": 1, "result": {...}}` or `{"id": 1, "error": {"code": -32000, "message": "..."}}`
 - Events are JSON without id: `{"method": "Event.name", "params": {...}}`
+- Browser session keep-alive is 10 minutes
 
 ## Connecting
 
 WebSocket connection example:
 
 ```javascript
-const ws = new WebSocket('wss://your-worker.workers.dev?secret=YOUR_SECRET');
+const ws = new WebSocket('wss://your-worker.workers.dev/?secret=YOUR_SECRET');
 
 ws.onopen = () => {
   ws.send(JSON.stringify({ id: 1, method: 'Page.navigate', params: { url: 'https://example.com' } }));
@@ -25,89 +28,17 @@ ws.onopen = () => {
 ws.onmessage = (event) => {
   const response = JSON.parse(event.data);
   // Initial connection sends Target.targetCreated event with targetId
-  // Use targetId in params for multi-tab scenarios
 };
 ```
 
-## Supported CDP Methods
+## Discovery Endpoints
 
-Browser domain:
-- `Browser.getVersion` - Returns browser version info
-- `Browser.close` - Closes the browser session
+The worker exposes Browserless-compatible discovery endpoints:
 
-Target domain:
-- `Target.createTarget` - Create new page: `{url?: string}` → `{targetId}`
-- `Target.closeTarget` - Close page: `{targetId}` → `{success: true}`
-- `Target.getTargets` - List pages → `{targetInfos: [{targetId, type, title, url}]}`
-- `Target.attachToTarget` - Attach to target: `{targetId}` → `{sessionId}`
-
-Page domain:
-- `Page.navigate` - Navigate: `{url}` → `{frameId, loaderId}`
-- `Page.reload` - Reload current page
-- `Page.captureScreenshot` - Screenshot: `{format?: 'png'|'jpeg'|'webp', quality?: number, clip?: {x,y,width,height}, fullPage?: boolean}` → `{data}` (base64)
-- `Page.printToPDF` - Generate PDF: `{landscape?, printBackground?, scale?, paperWidth?, paperHeight?, margin*?}` → `{data}` (base64)
-- `Page.setContent` - Set HTML: `{html, waitUntil?: 'load'|'domcontentloaded'|'networkidle0'|'networkidle2'}`
-- `Page.getFrameTree` - Get frame structure
-- `Page.getLayoutMetrics` - Get viewport/content dimensions
-- `Page.addScriptToEvaluateOnNewDocument` - Inject script: `{source}` → `{identifier}`
-- `Page.handleJavaScriptDialog` - Handle dialogs: `{accept, promptText?}`
-- `Page.stopLoading` - Stop page load
-- `Page.getNavigationHistory` - Get history entries
-- `Page.navigateToHistoryEntry` - Navigate history: `{entryId}`
-- `Page.setBypassCSP` - Bypass CSP: `{enabled}`
-
-Runtime domain:
-- `Runtime.evaluate` - Execute JS: `{expression, returnByValue?: true, awaitPromise?: false}` → `{result: {type, value, objectId?}}` or `{exceptionDetails}`
-- `Runtime.callFunctionOn` - Call function: `{functionDeclaration, arguments?: [{value}|{objectId}], returnByValue?}`
-- `Runtime.getProperties` - Get object props: `{objectId, ownProperties?}` → `{result: [{name, value}]}`
-- `Runtime.releaseObject` - Release ref: `{objectId}`
-- `Runtime.releaseObjectGroup` - Release all refs
-
-DOM domain:
-- `DOM.getDocument` - Get document: `{depth?}` → `{root: {nodeId, ...}}`
-- `DOM.querySelector` - Find element: `{nodeId, selector}` → `{nodeId}` (0 if not found)
-- `DOM.querySelectorAll` - Find all: `{nodeId, selector}` → `{nodeIds}`
-- `DOM.getOuterHTML` - Get HTML: `{nodeId}` → `{outerHTML}`
-- `DOM.getAttributes` - Get attrs: `{nodeId}` → `{attributes: [name, value, ...]}`
-- `DOM.setAttributeValue` - Set attr: `{nodeId, name, value}`
-- `DOM.focus` - Focus element: `{nodeId}`
-- `DOM.getBoxModel` - Get dimensions: `{nodeId}` → `{model: {content, padding, border, margin}}`
-- `DOM.scrollIntoViewIfNeeded` - Scroll to element: `{nodeId}`
-- `DOM.removeNode` - Remove element: `{nodeId}`
-- `DOM.setNodeValue` - Set text: `{nodeId, value}`
-- `DOM.setFileInputFiles` - Set file input: `{nodeId, files: [path, ...]}`
-
-Input domain:
-- `Input.dispatchMouseEvent` - Mouse: `{type: 'mousePressed'|'mouseReleased'|'mouseMoved'|'mouseWheel', x, y, button?, clickCount?, deltaX?, deltaY?}`
-- `Input.dispatchKeyEvent` - Keyboard: `{type: 'keyDown'|'keyUp'|'char', key?, text?}`
-- `Input.insertText` - Type text: `{text}`
-
-Network domain:
-- `Network.setCacheDisabled` - Disable cache: `{cacheDisabled}`
-- `Network.setExtraHTTPHeaders` - Set headers: `{headers: {name: value}}`
-- `Network.setCookie` - Set cookie: `{name, value, url?, domain?, path?, secure?, httpOnly?, sameSite?, expires?}`
-- `Network.setCookies` - Set multiple: `{cookies: [...]}`
-- `Network.getCookies` - Get cookies: `{urls?}` → `{cookies}`
-- `Network.deleteCookies` - Delete: `{name, url?, domain?, path?}`
-- `Network.clearBrowserCookies` - Clear all cookies
-- `Network.setUserAgentOverride` - Set UA: `{userAgent}`
-
-Emulation domain:
-- `Emulation.setDeviceMetricsOverride` - Set viewport: `{width, height, deviceScaleFactor?, mobile?}`
-- `Emulation.clearDeviceMetricsOverride` - Reset to 1280x720
-- `Emulation.setUserAgentOverride` - Set UA: `{userAgent}`
-- `Emulation.setGeolocationOverride` - Set location: `{latitude, longitude, accuracy?}`
-- `Emulation.clearGeolocationOverride` - Clear location
-- `Emulation.setTimezoneOverride` - Set timezone: `{timezoneId}`
-- `Emulation.setTouchEmulationEnabled` - Enable touch: `{enabled}`
-- `Emulation.setEmulatedMedia` - Set media: `{media?, features?: [{name, value}]}`
-
-Fetch domain (request interception):
-- `Fetch.enable` - Enable interception: `{patterns?: [{urlPattern?, requestStage?}]}`
-- `Fetch.disable` - Disable interception
-- `Fetch.continueRequest` - Continue: `{requestId, url?, method?, postData?, headers?: [{name, value}]}`
-- `Fetch.fulfillRequest` - Mock response: `{requestId, responseCode, responseHeaders?: [{name, value}], body?}` (body is base64)
-- `Fetch.failRequest` - Fail request: `{requestId, errorReason}`
+- `GET /json/version?secret=...` — returns browser version info and `webSocketDebuggerUrl`
+- `GET /json/list?secret=...` — returns empty target list (placeholder)
+- `GET /json?secret=...` — alias for `/json/list`
+- `GET /` — info endpoint (no secret required, no sensitive data exposed)
 
 ## Common Patterns
 
@@ -125,24 +56,31 @@ const { result } = await send('Runtime.evaluate', { expression: 'document.title'
 console.log(result.value); // page title
 ```
 
-Click an element:
-```javascript
-const { root } = await send('DOM.getDocument');
-const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: 'button.submit' });
-const { model } = await send('DOM.getBoxModel', { nodeId });
-const x = (model.content[0] + model.content[2]) / 2;
-const y = (model.content[1] + model.content[5]) / 2;
-await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
-await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left' });
-```
-
 Set viewport for mobile:
 ```javascript
 await send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 2, mobile: true });
-await send('Network.setUserAgentOverride', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)...' });
+```
+
+## OpenClaw Example
+
+```json
+{
+  "browser": {
+    "enabled": true,
+    "defaultProfile": "cloudflare",
+    "remoteCdpTimeoutMs": 10000,
+    "remoteCdpHandshakeTimeoutMs": 20000,
+    "profiles": {
+      "cloudflare": {
+        "cdpUrl": "wss://your-worker.workers.dev/?secret=<CDP_SECRET>"
+      }
+    }
+  }
+}
 ```
 
 ## Optional
 
-- [Chrome DevTools Protocol Documentation](https://chromedevtools.github.io/devtools-protocol/): Full CDP reference (this worker implements a subset)
+- [Chrome DevTools Protocol Documentation](https://chromedevtools.github.io/devtools-protocol/): Full CDP reference
+- [Cloudflare Browser Rendering](https://developers.cloudflare.com/browser-rendering/): Cloudflare's Browser Rendering docs
 - [Puppeteer Documentation](https://pptr.dev/): The underlying browser automation library
