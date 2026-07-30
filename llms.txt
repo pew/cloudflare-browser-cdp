@@ -9,6 +9,7 @@ Key facts:
 - Authentication via `?secret=<CDP_SECRET>` query parameter on all endpoints
 - WebSocket connection at `wss://<worker-url>/?secret=<CDP_SECRET>`
 - All CDP methods supported by Cloudflare Browser Rendering are available
+- Browser Run `Cloudflare.*` commands and events are passed through, including structured human handoff
 - Send CDP commands as JSON: `{"id": 1, "method": "Domain.method", "params": {...}}`
 - Responses are JSON: `{"id": 1, "result": {...}}` or `{"id": 1, "error": {"code": -32000, "message": "..."}}`
 - Events are JSON without id: `{"method": "Event.name", "params": {...}}`
@@ -22,14 +23,15 @@ WebSocket connection example:
 const ws = new WebSocket('wss://your-worker.workers.dev/?secret=YOUR_SECRET');
 
 ws.onopen = () => {
-  ws.send(JSON.stringify({ id: 1, method: 'Page.navigate', params: { url: 'https://example.com' } }));
+  ws.send(JSON.stringify({ id: 1, method: 'Browser.getVersion', params: {} }));
 };
 
 ws.onmessage = (event) => {
   const response = JSON.parse(event.data);
-  // Initial connection sends Target.targetCreated event with targetId
 };
 ```
+
+The WebSocket is a browser-level CDP connection. Before sending page-scoped commands, attach with `Target.attachToTarget` using `flatten: true`, then include the returned `sessionId` in each command.
 
 ## Discovery Endpoints
 
@@ -83,4 +85,5 @@ await send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, devi
 
 - [Chrome DevTools Protocol Documentation](https://chromedevtools.github.io/devtools-protocol/): Full CDP reference
 - [Cloudflare Browser Rendering](https://developers.cloudflare.com/browser-rendering/): Cloudflare's Browser Rendering docs
+- [Human in the Loop](https://developers.cloudflare.com/browser-run/features/human-in-the-loop/): Live View handoff commands and lifecycle
 - [Puppeteer Documentation](https://pptr.dev/): The underlying browser automation library

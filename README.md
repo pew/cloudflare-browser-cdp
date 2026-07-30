@@ -6,6 +6,7 @@ This project is intended for generic remote-CDP clients such as OpenClaw, Browse
 
 ## Requirements
 
+- Node.js 22 or newer
 - Cloudflare account with Browser Rendering enabled
 - `CDP_SECRET` configured as a Worker secret
 - `wrangler` authenticated for local development and deploys
@@ -73,9 +74,26 @@ Notes:
 - The default OpenClaw examples for Browserless use much smaller timeouts. Cloudflare Browser Rendering cold starts can be slower, so higher OpenClaw timeouts are safer.
 - This Worker is a session proxy, not a full Browserless replacement with stable `/json/list`, `/json/new`, and `/json/close/*` tab-management semantics.
 
+## Human in the Loop
+
+The proxy forwards Browser Run's `Cloudflare.*` CDP commands and events unchanged, including structured human handoff. Run the interactive smoke test against a deployed Worker:
+
+```bash
+CDP_SECRET=xxx \
+WORKER_URL=your-worker.workers.dev \
+HANDOFF_URL=https://example.com \
+HANDOFF_INSTRUCTIONS='Interact with the page, then select Done.' \
+node scripts/test-handoff.js
+```
+
+Open the printed Live View URL, complete the task, and select **Done**. The script verifies the completion event, inactive handoff state, and resumed CDP automation.
+
+The Live View URL is a short-lived bearer credential: share it only with the intended operator and do not log or store it. Keep the CDP client connected during handoff; disconnecting closes this proxy's browser session. See Cloudflare's [Human in the Loop documentation](https://developers.cloudflare.com/browser-run/features/human-in-the-loop/).
+
 ## Verification
 
 ```bash
+npm test
 npm run typecheck
 ```
 

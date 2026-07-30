@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createClient } from './cdp-client.js'
-import { writeFileSync } from 'fs'
+import { writeFileSync } from 'node:fs'
 
 const secret = process.env.CDP_SECRET
 const workerUrl = process.env.WORKER_URL

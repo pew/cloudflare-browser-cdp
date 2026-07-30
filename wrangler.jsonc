@@ -9,6 +9,9 @@
   "observability": {
     "enabled": true,
   },
+  "secrets": {
+    "required": ["CDP_SECRET"],
+  },
   // Browser Rendering binding - requires Workers Paid plan
   "browser": {
     "binding": "BROWSER",

@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import WebSocket from 'ws';
 
 export function createClient(options = {}) {
   const CDP_SECRET = options.secret || process.env.CDP_SECRET;
@@ -15,11 +14,8 @@ export function createClient(options = {}) {
     const ws = new WebSocket(wsUrl);
     let messageId = 1;
     const pending = new Map();
-    let targetId = null;
-    let targetResolve;
-    const targetReady = new Promise(r => { targetResolve = r; });
     
-    function send(method, params = {}) {
+    function sendMessage(method, params = {}, sessionId) {
       return new Promise((res, rej) => {
         const id = messageId++;
         const timer = setTimeout(() => {
@@ -27,17 +23,12 @@ export function createClient(options = {}) {
           rej(new Error(`Timeout: ${method}`));
         }, timeout);
         pending.set(id, { resolve: res, reject: rej, timeout: timer });
-        ws.send(JSON.stringify({ id, method, params }));
+        ws.send(JSON.stringify({ id, method, params, ...(sessionId && { sessionId }) }));
       });
     }
     
-    ws.on('message', (data) => {
-      const msg = JSON.parse(data.toString());
-      
-      if (msg.method === 'Target.targetCreated' && msg.params?.targetInfo?.type === 'page') {
-        targetId = msg.params.targetInfo.targetId;
-        targetResolve(targetId);
-      }
+    ws.addEventListener('message', (event) => {
+      const msg = JSON.parse(event.data);
       
       if (msg.id && pending.has(msg.id)) {
         const { resolve, reject, timeout: timer } = pending.get(msg.id);
@@ -47,19 +38,27 @@ export function createClient(options = {}) {
       }
     });
     
-    ws.on('error', reject);
+    ws.addEventListener('error', (event) => reject(event.error));
     
-    ws.on('open', async () => {
+    ws.addEventListener('open', async () => {
       try {
-        await Promise.race([
-          targetReady,
-          new Promise((_, rej) => setTimeout(() => rej(new Error('No target created')), 10000))
-        ]);
+        const { targetInfos } = await sendMessage('Target.getTargets');
+        let targetId = targetInfos.find((target) => target.type === 'page')?.targetId;
+        if (!targetId) {
+          ({ targetId } = await sendMessage('Target.createTarget', { url: 'about:blank' }));
+        }
+        const { sessionId } = await sendMessage('Target.attachToTarget', {
+          targetId,
+          flatten: true,
+        });
+        const send = (method, params = {}) => sendMessage(method, params, sessionId);
         
         const client = {
           ws,
           targetId,
+          sessionId,
           send,
+          sendBrowser: sendMessage,
           
           async navigate(url, waitMs = 3000) {
             await send('Page.navigate', { url });
@@ -122,6 +121,7 @@ export function createClient(options = {}) {
         
         resolve(client);
       } catch (err) {
+        ws.close();
         reject(err);
       }
     });
