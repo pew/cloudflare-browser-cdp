@@ -86,4 +86,3 @@ await send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, devi
 - [Chrome DevTools Protocol Documentation](https://chromedevtools.github.io/devtools-protocol/): Full CDP reference
 - [Cloudflare Browser Rendering](https://developers.cloudflare.com/browser-rendering/): Cloudflare's Browser Rendering docs
 - [Human in the Loop](https://developers.cloudflare.com/browser-run/features/human-in-the-loop/): Live View handoff commands and lifecycle
-- [Puppeteer Documentation](https://pptr.dev/): The underlying browser automation library

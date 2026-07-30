@@ -4,7 +4,7 @@
 
 Cloudflare Worker that proxies Cloudflare Browser Rendering as a standard remote CDP (Chrome DevTools Protocol) WebSocket endpoint. Clients connect via WebSocket, the worker acquires a browser session and forwards raw CDP traffic between the client and Browser Rendering's internal devtools WebSocket.
 
-**Stack:** TypeScript, Cloudflare Workers, `@cloudflare/puppeteer` (session acquisition only), WebSocket
+**Stack:** TypeScript, Cloudflare Workers, WebSocket
 
 ---
 
@@ -60,7 +60,7 @@ The worker is a **transparent CDP proxy**, not a CDP implementation. It does not
 
 1. Client connects via `WS /?secret=<CDP_SECRET>`
 2. Worker authenticates the secret against `env.CDP_SECRET` (timing-safe comparison)
-3. Worker calls `puppeteer.acquire(env.BROWSER, { keep_alive: 600_000 })` to get a `sessionId`
+3. Worker acquires a session through the Browser Rendering binding with a 10-minute keep-alive
 4. Worker opens the session's standard devtools WebSocket via `env.BROWSER.fetch(/v1/devtools/browser/<sessionId>)`
 5. Raw CDP text messages are proxied bidirectionally without interpretation
 6. On disconnect, the worker sends `Browser.close` to clean up the session
@@ -119,7 +119,7 @@ interface Env {
 }
 ```
 
-wrangler.jsonc: `browser.binding: "BROWSER"`, `browser.remote: true`, `compatibility_flags: ["nodejs_compat"]`
+wrangler.jsonc: `browser.binding: "BROWSER"`, `browser.remote: true`
 
 ---
 

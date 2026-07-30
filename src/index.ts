@@ -1,5 +1,3 @@
-import puppeteer from '@cloudflare/puppeteer';
-
 const BROWSER_KEEP_ALIVE_MS = 600_000;
 const FAKE_HOST = 'https://fake.host';
 
@@ -21,13 +19,9 @@ function timingSafeEqual(a: string, b: string): boolean {
   return crypto.subtle.timingSafeEqual(aBytes, bBytes);
 }
 
-function getSecret(url: URL): string | null {
-  return url.searchParams.get('secret');
-}
-
 function authenticate(request: Request, env: Env): Response | null {
   const url = new URL(request.url);
-  const providedSecret = getSecret(url);
+  const providedSecret = url.searchParams.get('secret');
 
   if (!env.CDP_SECRET) {
     return Response.json({
@@ -126,9 +120,17 @@ function closeServer(state: ProxyState, server: WebSocket, code: number, reason:
 }
 
 async function initProxy(server: WebSocket, env: Env, state: ProxyState): Promise<void> {
-  const { sessionId } = await puppeteer.acquire(env.BROWSER, {
-    keep_alive: BROWSER_KEEP_ALIVE_MS,
-  });
+  const acquireResponse = await env.BROWSER.fetch(
+    `${FAKE_HOST}/v1/devtools/browser?keep_alive=${BROWSER_KEEP_ALIVE_MS}`,
+    { method: 'POST' }
+  );
+  const acquireBody = await acquireResponse.text();
+  if (acquireResponse.status !== 200) {
+    throw new Error(
+      `Unable to create new browser: code: ${acquireResponse.status}: message: ${acquireBody}`
+    );
+  }
+  const { sessionId } = JSON.parse(acquireBody) as { sessionId: string };
 
   const upstream = await connectInternalDevtools(env, sessionId);
   if (state.closed) {
@@ -229,7 +231,7 @@ function handleWebSocketUpgrade(request: Request, env: Env): Response {
 
 function handleJsonVersion(request: Request): Response {
   const url = new URL(request.url);
-  const providedSecret = getSecret(url);
+  const providedSecret = url.searchParams.get('secret');
   const wsUrl = buildWebSocketUrl(url, providedSecret || '');
 
   return Response.json({
@@ -244,7 +246,7 @@ function handleJsonVersion(request: Request): Response {
 
 function handleInfoEndpoint(request: Request, env: Env): Response {
   const url = new URL(request.url);
-  const providedSecret = getSecret(url);
+  const providedSecret = url.searchParams.get('secret');
   const authenticated = !!(env.CDP_SECRET && providedSecret && timingSafeEqual(providedSecret, env.CDP_SECRET));
   const wsHint = authenticated
     ? buildWebSocketUrl(url, providedSecret)

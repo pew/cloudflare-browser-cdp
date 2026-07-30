@@ -58,7 +58,6 @@ export function createClient(options = {}) {
           targetId,
           sessionId,
           send,
-          sendBrowser: sendMessage,
           
           async navigate(url, waitMs = 3000) {
             await send('Page.navigate', { url });
@@ -70,41 +69,8 @@ export function createClient(options = {}) {
             return Buffer.from(data, 'base64');
           },
           
-          async setViewport(width = 1280, height = 800, scale = 1, mobile = false) {
-            await send('Emulation.setDeviceMetricsOverride', {
-              width, height, deviceScaleFactor: scale, mobile
-            });
-          },
-          
           async evaluate(expression) {
             return send('Runtime.evaluate', { expression });
-          },
-          
-          async scroll(y = 300) {
-            await send('Runtime.evaluate', { expression: `window.scrollBy(0, ${y})` });
-            await new Promise(r => setTimeout(r, 300));
-          },
-          
-          async click(selector) {
-            await send('Runtime.evaluate', { 
-              expression: `document.querySelector('${selector}')?.click()` 
-            });
-          },
-          
-          async type(selector, text) {
-            await send('Runtime.evaluate', {
-              expression: `(() => {
-                const el = document.querySelector('${selector}');
-                if (el) { el.value = '${text}'; el.dispatchEvent(new Event('input')); }
-              })()`
-            });
-          },
-          
-          async getHTML() {
-            const result = await send('Runtime.evaluate', {
-              expression: 'document.documentElement.outerHTML'
-            });
-            return result.result?.value;
           },
           
           async getText() {
