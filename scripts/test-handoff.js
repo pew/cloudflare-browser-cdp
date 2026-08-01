@@ -6,10 +6,7 @@ if (!Number.isInteger(handoffTimeout) || handoffTimeout < 1 || handoffTimeout > 
   throw new Error('HANDOFF_TIMEOUT_MS must be an integer between 1 and 600000')
 }
 
-const client = await createClient({
-  secret: process.env.CDP_SECRET,
-  workerUrl: process.env.WORKER_URL,
-})
+const client = await createClient()
 
 try {
   await client.navigate(process.env.HANDOFF_URL || 'https://example.com')
@@ -83,5 +80,5 @@ try {
   const title = await client.evaluate('document.title')
   console.log('Handoff complete; automation resumed on:', title.result?.value)
 } finally {
-  client.close()
+  await client.close()
 }

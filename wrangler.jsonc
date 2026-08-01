@@ -3,19 +3,28 @@
   "name": "remote-browser-cdp",
   "main": "src/index.ts",
   "compatibility_date": "2026-02-02",
+  "compatibility_flags": ["web_socket_auto_reply_to_close"],
   "workers_dev": true,
   "preview_urls": false,
   "observability": {
     "enabled": true,
   },
   "secrets": {
-    "required": ["CDP_SECRET"],
+    "required": ["CDP_SECRETS"],
   },
   // Browser Rendering binding - requires Workers Paid plan
   "browser": {
     "binding": "BROWSER",
     "remote": true,
   },
-  // Secrets to configure via `wrangler secret put`:
-  // - CDP_SECRET: Shared secret for endpoint authentication (required)
+  "durable_objects": {
+    "bindings": [
+      { "name": "CDP_SESSIONS", "class_name": "BrowserSession" },
+      { "name": "LIVE_VIEW_LINKS", "class_name": "LiveViewLink" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["BrowserSession"] },
+    { "tag": "v2", "new_sqlite_classes": ["LiveViewLink"] },
+  ],
 }

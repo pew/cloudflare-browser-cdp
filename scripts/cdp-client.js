@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 
 export function createClient(options = {}) {
-  const CDP_SECRET = options.secret || process.env.CDP_SECRET;
-  if (!CDP_SECRET) {
-    throw new Error('CDP_SECRET environment variable not set');
+  const wsUrl = options.cdpUrl || process.env.CDP_URL;
+  if (!wsUrl) {
+    throw new Error('CDP_URL environment variable not set');
   }
-  
-  const workerUrl = (options.workerUrl || process.env.WORKER_URL).replace(/^https?:\/\//, '');
-  const wsUrl = `wss://${workerUrl}?secret=${encodeURIComponent(CDP_SECRET)}`;
+
   const timeout = options.timeout || 60000;
   
   return new Promise((resolve, reject) => {
@@ -68,7 +66,7 @@ export function createClient(options = {}) {
             const { data } = await send('Page.captureScreenshot', { format });
             return Buffer.from(data, 'base64');
           },
-          
+
           async evaluate(expression) {
             return send('Runtime.evaluate', { expression });
           },
@@ -81,7 +79,11 @@ export function createClient(options = {}) {
           },
           
           close() {
-            ws.close();
+            if (ws.readyState === 3) return Promise.resolve();
+            return new Promise((resolve) => {
+              ws.addEventListener('close', resolve, { once: true });
+              ws.close();
+            });
           }
         };
         
@@ -100,8 +102,8 @@ if (isMain) {
   console.log('');
   console.log('Usage:');
   console.log('  import { createClient } from "./scripts/cdp-client.js";');
-  console.log('  const client = await createClient({ secret: "...", workerUrl: "..." });');
+  console.log('  const client = await createClient({ cdpUrl: "wss://...?secret=..." });');
   console.log('  await client.navigate("https://example.com");');
   console.log('  const screenshot = await client.screenshot();');
-  console.log('  client.close();');
+  console.log('  await client.close();');
 }

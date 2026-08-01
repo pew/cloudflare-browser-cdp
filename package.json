@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   },
   "description": "Cloudflare Browser Rendering CDP WebSocket proxy - expose headless Chrome via CDP protocol",
   "scripts": {

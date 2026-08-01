@@ -22,14 +22,14 @@ npm run deploy                 # Deploy to Cloudflare
 ### Local Development
 
 ```bash
-echo "CDP_SECRET=test-secret" > .dev.vars    # Local secrets
-npx wrangler secret put CDP_SECRET            # Production secret
+echo 'CDP_SECRETS=["test-secret"]' > .dev.vars
+printf '%s' '["test-secret"]' | npx wrangler secret put CDP_SECRETS
 ```
 
 ### Testing the Remote Browser
 
 ```bash
-CDP_SECRET=xxx WORKER_URL=your-worker.workers.dev node scripts/test-browser.js
+CDP_URL='wss://your-worker.workers.dev/?secret=test-secret' node scripts/test-browser.js
 ```
 
 ### No Test Framework
@@ -54,16 +54,17 @@ scripts/
 
 ## Architecture
 
-The worker is a **transparent CDP proxy**, not a CDP implementation. It does not interpret or handle individual CDP methods.
+The worker is a raw CDP proxy, not a CDP implementation. It forwards methods unchanged except that `Cloudflare.getLiveView` responses receive a short-lived same-origin redirect URL so agents can share Live View without exposing its JWT.
 
 ### Request Flow
 
-1. Client connects via `WS /?secret=<CDP_SECRET>`
-2. Worker authenticates the secret against `env.CDP_SECRET` (timing-safe comparison)
-3. Worker acquires a session through the Browser Rendering binding with a 10-minute keep-alive
-4. Worker opens the session's standard devtools WebSocket via `env.BROWSER.fetch(/v1/devtools/browser/<sessionId>)`
-5. Raw CDP text messages are proxied bidirectionally without interpretation
-6. On disconnect, the worker sends `Browser.close` to clean up the session
+1. Client connects via `WS /?secret=<configured-secret>`
+2. Worker authenticates the secret against the `env.CDP_SECRETS` JSON array (timing-safe comparison)
+3. Worker routes the connection to the Durable Object named by the secret's SHA-256 digest
+4. The object reuses or acquires a Browser Rendering session with a 10-minute keep-alive
+5. The object opens the session's devtools WebSocket and proxies raw CDP text bidirectionally
+6. `Cloudflare.getLiveView` responses store the upstream URL behind a short-lived `/handoff/<token>` redirect
+7. Client disconnects close only that socket; the shared browser remains available for reconnects
 
 ### HTTP Endpoints
 
@@ -74,6 +75,7 @@ The worker is a **transparent CDP proxy**, not a CDP implementation. It does not
 | `GET /json/version?secret=...` | CDP discovery (Browserless-compatible) |
 | `GET /json/list?secret=...` | Empty target list placeholder |
 | `GET /json?secret=...` | Alias for `/json/list` |
+| `GET /handoff/<token>` | Short-lived redirect to Browser Run Live View |
 
 ---
 
@@ -105,8 +107,8 @@ The worker is a **transparent CDP proxy**, not a CDP implementation. It does not
 ### Security
 
 - Timing-safe comparison for secret authentication (`timingSafeEqual`)
-- All endpoints require `?secret=<CDP_SECRET>` except unauthenticated `GET /` (which reveals no sensitive info)
-- `CDP_SECRET` stored as a Wrangler secret, never in code
+- CDP and discovery endpoints require a value from `CDP_SECRETS` in `?secret=...`; `GET /handoff/<token>` uses its short-lived unguessable token as the bearer credential
+- `CDP_SECRETS` is stored as a Wrangler secret, never in code
 
 ---
 
@@ -114,8 +116,10 @@ The worker is a **transparent CDP proxy**, not a CDP implementation. It does not
 
 ```typescript
 interface Env {
-  BROWSER: BrowserRun;   // Browser Rendering binding (remote: true)
-  CDP_SECRET: string;    // Required secret (wrangler secret put)
+  BROWSER: BrowserRun;
+  CDP_SESSIONS: DurableObjectNamespace;
+  LIVE_VIEW_LINKS: DurableObjectNamespace;
+  CDP_SECRETS: string; // Required JSON array (wrangler secret put)
 }
 ```
 
